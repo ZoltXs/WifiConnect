@@ -56,9 +56,9 @@ Before using WifiConnect, make sure the following tools are installed and availa
 
 ```bash
 
-Git clone https://github.com/yourusername/wificonnect.git
+git clone https://github.com/yourusername/wificonnect.git
 
-Cd wificonnect
+cd wificonnect
 
 ```
 
@@ -66,7 +66,7 @@ Cd wificonnect
 
 ```bash
 
-Chmod +x wificonnect.sh
+chmod +x wificonnect.sh
 
 ```
 
@@ -74,7 +74,7 @@ Chmod +x wificonnect.sh
 
 ```bash
 
-Sudo ./wificonnect.sh
+sudo ./wificonnect.sh
 
 ```
 
