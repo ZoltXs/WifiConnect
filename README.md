@@ -1,4 +1,4 @@
-# WifiConnect - ColorBerry Kali Wi-Fi Administrator
+# WifiConnect - ColorBerry and Beepy Debian Terminal Wi-Fi Administrator
 
 **WifiConnect** is a lightweight terminal-based Wi-Fi administrator designed specifically for **Colorberry and Beepy** and other Debian-based distributions that use **NetworkManager**. It provides a simple graphical interface through `whiptail`, which allows users to easily scan, connect and manage wireless networks, all without having to touch command line arguments or graphical desktop environments.
 
