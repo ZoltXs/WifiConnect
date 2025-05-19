@@ -72,19 +72,64 @@ EOF"
 
 connect_to_network() {
   local SSID="$1"
-  local PASSWORD=$(whiptail --title "Wi-Fi Password" --inputbox "Enter the password for '$SSID':" 12 40 3>&1 1>&2 2>&3)
-  [ $? -ne 0 ] && return 1
+
+  # Ask if network is open (no password)
+  whiptail --yesno "Is the network '$SSID' open (no password)?" 10 50
+  if [ $? -eq 0 ]; then
+    PASSWORD=""
+  else
+    PASSWORD=$(whiptail --title "Wi-Fi Password" --inputbox "Enter the password for '$SSID':" 12 40 3>&1 1>&2 2>&3)
+    [ $? -ne 0 ] && return 1
+  fi
 
   {
     for i in {1..10}; do echo $((i * 10)); sleep 0.2; done
   } | whiptail --gauge "Connecting to '$SSID'..." 12 40 0
 
-  if nmcli device wifi connect "$SSID" password "$PASSWORD"; then
-    create_nmconnection "$SSID" "$PASSWORD"
-    show_success "Successfully connected and saved to '$SSID'"
+  if [ -z "$PASSWORD" ]; then
+    if nmcli device wifi connect "$SSID"; then
+      create_nmconnection_open "$SSID"
+      show_success "Successfully connected to open network '$SSID'"
+    else
+      show_error "Could not connect to open network '$SSID'."
+    fi
   else
-    show_error "Could not connect. Please check the password."
+    if nmcli device wifi connect "$SSID" password "$PASSWORD"; then
+      create_nmconnection "$SSID" "$PASSWORD"
+      show_success "Successfully connected and saved to '$SSID'"
+    else
+      show_error "Could not connect. Please check the password."
+    fi
   fi
+}
+
+create_nmconnection_open() {
+  local SSID="$1"
+  local UUID_GEN=$(cat /proc/sys/kernel/random/uuid)
+  local FILE="/etc/NetworkManager/system-connections/${SSID}.nmconnection"
+
+  sudo bash -c "cat > \"$FILE\" <<EOF
+[connection]
+id=$SSID
+uuid=$UUID_GEN
+type=wifi
+autoconnect=true
+permissions=
+
+[wifi]
+ssid=$SSID
+mode=infrastructure
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+EOF"
+
+  sudo chmod 600 "$FILE"
+  sudo chown root:root "$FILE"
+  sudo nmcli connection reload
 }
 
 manage_saved_networks() {
@@ -97,15 +142,32 @@ manage_saved_networks() {
   OPTIONS=()
   for file in $FILES; do
     SSID=$(basename "$file" .nmconnection)
-    OPTIONS+=("$SSID" "Delete")
+    OPTIONS+=("$SSID" "Delete or Edit")
   done
 
-  SELECTED=$(whiptail --title "Saved Networks" --menu "Select a network to delete:" 12 40 4 "${OPTIONS[@]}" 3>&1 1>&2 2>&3)
+  SELECTED=$(whiptail --title "Saved Networks" --menu "Select a network to delete or edit:" 12 40 4 "${OPTIONS[@]}" 3>&1 1>&2 2>&3)
   [ $? -ne 0 ] && return
 
-  sudo rm "/etc/NetworkManager/system-connections/${SELECTED}.nmconnection"
-  sudo nmcli connection delete "$SELECTED" &>/dev/null
-  show_success "Network '$SELECTED' deleted successfully."
+  # Ask if user wants to delete or edit
+  whiptail --yesno "Do you want to delete the network      '$SELECTED'?" 10 45
+  if [ $? -eq 0 ]; then
+    sudo rm "/etc/NetworkManager/system-connections/${SELECTED}.nmconnection" &>/dev/null
+    sudo nmcli connection delete "$SELECTED" &>/dev/null
+    show_success "Network '$SELECTED' deleted successfully."
+    return
+  else
+    # Edit the network password
+    PASSWORD=$(whiptail --title "Edit Password" --inputbox "        Enter the new password for \n            '$SELECTED':\n      (leave empty for open network)" 12 45 3>&1 1>&2 2>&3)
+    [ $? -ne 0 ] && return
+
+    if [ -z "$PASSWORD" ]; then
+      create_nmconnection_open "$SELECTED"
+      show_success "Network '$SELECTED' updated as open network."
+    else
+      create_nmconnection "$SELECTED" "$PASSWORD"
+      show_success "Network '$SELECTED' password updated."
+    fi
+  fi
 }
 
 main() {
@@ -125,7 +187,7 @@ main() {
       3)
         clear
         echo "Thanks for using WifiConnect"
-        sleep 1
+        sleep 2
         clear
         exit 0
         ;;
@@ -134,3 +196,4 @@ main() {
 }
 
 main
+
