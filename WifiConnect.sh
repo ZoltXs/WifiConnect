@@ -1,42 +1,42 @@
 #!/bin/bash
 
 # WifiConnect - ColorBerry-Kali-Wi-Fi Manager
-# Por N@Xs
+# By N@Xs
 
-mostrar_error() {
+show_error() {
   whiptail --title "❌ Error" --msgbox "$1" 12 40
 }
 
-mostrar_exito() {
-  whiptail --title "✅ Éxito" --msgbox "$1" 12 40
+show_success() {
+  whiptail --title "✅ Success" --msgbox "$1" 12 40
 }
 
-buscar_redes() {
+scan_networks() {
   {
     for i in {1..10}; do echo $((i * 10)); sleep 0.1; done
-  } | whiptail --gauge "Buscando redes Wi-Fi..." 12 40 0
+  } | whiptail --gauge "Scanning for Wi-Fi networks..." 12 40 0
 
-  REDES=$(nmcli -f SSID,SIGNAL dev wifi list | tail -n +2 | sed 's/  */ /g')
-  OPCIONES=()
+  NETWORKS=$(nmcli -f SSID,SIGNAL dev wifi list | tail -n +2 | sed 's/  */ /g')
+  OPTIONS=()
 
-  while IFS= read -r linea; do
-    SSID=$(echo "$linea" | awk '{print $1}')
-    SIGNAL=$(echo "$linea" | awk '{print $2}')
-    [[ -n "$SSID" && ! " ${OPCIONES[*]} " =~ " $SSID " ]] && OPCIONES+=("$SSID" "$SIGNAL%")
-  done <<< "$REDES"
+  while IFS= read -r line; do
+    SSID=$(echo "$line" | awk '{print $1}')
+    SIGNAL=$(echo "$line" | awk '{print $2}')
+    [[ -n "$SSID" && ! " ${OPTIONS[*]} " =~ " $SSID " ]] && OPTIONS+=("$SSID" "$SIGNAL%")
+  done <<< "$NETWORKS"
 
-  if [ ${#OPCIONES[@]} -eq 0 ]; then
-    mostrar_error "No se encontraron redes Wi-Fi."
+  if [ ${#OPTIONS[@]} -eq 0 ]; then
+    show_error "No Wi-Fi networks found."
     return 1
   fi
 
-  SSID_SELECCIONADO=$(whiptail --title "Redes Wi-Fi" --menu "Seleccione una red:" 12 40 4 "${OPCIONES[@]}" 3>&1 1>&2 2>&3)
+  SELECTED_SSID=$(whiptail --title "Wi-Fi Networks" --menu "Select a network:" 12 40 4 "${OPTIONS[@]}" 3>&1 1>&2 2>&3)
   [ $? -ne 0 ] && return 1
 
-  conectar_red "$SSID_SELECCIONADO"
+  connect_to_network "$SELECTED_SSID"
 }
 
-crear_nmconnection() {
+create_nmconnection() {
   local SSID="$1"
   local PASSWORD="$2"
   local UUID_GEN=$(cat /proc/sys/kernel/random/uuid)
@@ -70,61 +70,61 @@ EOF"
   sudo nmcli connection reload
 }
 
-conectar_red() {
+connect_to_network() {
   local SSID="$1"
-  local PASSWORD=$(whiptail --title "Contraseña Wi-Fi" --inputbox "Ingrese la contraseña para '$SSID':" 12 40 3>&1 1>&2 2>&3)
+  local PASSWORD=$(whiptail --title "Wi-Fi Password" --inputbox "Enter the password for '$SSID':" 12 40 3>&1 1>&2 2>&3)
   [ $? -ne 0 ] && return 1
 
   {
     for i in {1..10}; do echo $((i * 10)); sleep 0.2; done
-  } | whiptail --gauge "Conectando a '$SSID'..." 12 40 0
+  } | whiptail --gauge "Connecting to '$SSID'..." 12 40 0
 
   if nmcli device wifi connect "$SSID" password "$PASSWORD"; then
-    crear_nmconnection "$SSID" "$PASSWORD"
-    mostrar_exito "Conectado y guardado correctamente a '$SSID'"
+    create_nmconnection "$SSID" "$PASSWORD"
+    show_success "Successfully connected and saved to '$SSID'"
   else
-    mostrar_error "No se pudo conectar. Verifique la contraseña."
+    show_error "Could not connect. Please check the password."
   fi
 }
 
-gestionar_redes_guardadas() {
+manage_saved_networks() {
   FILES=$(ls /etc/NetworkManager/system-connections/*.nmconnection 2>/dev/null)
   if [ -z "$FILES" ]; then
-    mostrar_error "No hay redes guardadas."
+    show_error "No saved networks found."
     return
   fi
 
-  OPCIONES=()
+  OPTIONS=()
   for file in $FILES; do
     SSID=$(basename "$file" .nmconnection)
-    OPCIONES+=("$SSID" "Eliminar")
+    OPTIONS+=("$SSID" "Delete")
   done
 
-  SELECCIONADA=$(whiptail --title "Redes Guardadas" --menu "Seleccione una red para eliminar:" 12 40 4 "${OPCIONES[@]}" 3>&1 1>&2 2>&3)
+  SELECTED=$(whiptail --title "Saved Networks" --menu "Select a network to delete:" 12 40 4 "${OPTIONS[@]}" 3>&1 1>&2 2>&3)
   [ $? -ne 0 ] && return
 
-  sudo rm "/etc/NetworkManager/system-connections/${SELECCIONADA}.nmconnection"
-  sudo nmcli connection delete "$SELECCIONADA" &>/dev/null
-  mostrar_exito "Red '$SELECCIONADA' eliminada correctamente."
+  sudo rm "/etc/NetworkManager/system-connections/${SELECTED}.nmconnection"
+  sudo nmcli connection delete "$SELECTED" &>/dev/null
+  show_success "Network '$SELECTED' deleted successfully."
 }
 
 main() {
-  whiptail --title "WifiConnect" --msgbox "       Bienvenido a WifiConnect\n\n            By N@Xs" 12 40
+  whiptail --title "WifiConnect" --msgbox "       Welcome to WifiConnect\n\n            By N@Xs" 12 40
 
   while true; do
-    OPCION=$(whiptail --title "WifiConnect" --menu "Seleccione una opción:" 12 40 3 \
-      "1" "Buscar y conectar a redes Wi-Fi" \
-      "2" "Gestionar redes guardadas" \
-      "3" "Salir" 3>&1 1>&2 2>&3)
+    OPTION=$(whiptail --title "WifiConnect" --menu "Choose an option:" 12 40 3 \
+      "1" "Scan and connect to Wi-Fi networks" \
+      "2" "Manage saved networks" \
+      "3" "Exit" 3>&1 1>&2 2>&3)
 
     [ $? -ne 0 ] && break
 
-    case $OPCION in
-      1) buscar_redes ;;
-      2) gestionar_redes_guardadas ;;
+    case $OPTION in
+      1) scan_networks ;;
+      2) manage_saved_networks ;;
       3)
         clear
-        echo "Gracias por usar WifiConnect"
+        echo "Thanks for using WifiConnect"
         sleep 1
         clear
         exit 0
